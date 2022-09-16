@@ -1,13 +1,12 @@
-use std::future::{ready, Future, Ready};
-use std::pin::Pin;
+use std::future::{ready, Ready};
 
 use std::rc::Rc;
 use std::time::UNIX_EPOCH;
 
 use actix_http::h1::Payload;
 use actix_web::dev::forward_ready;
-use actix_web::http::header::{HeaderMap, HeaderValue};
-use actix_web::web::{BytesMut, Header};
+use actix_web::http::header::HeaderMap;
+use actix_web::web::BytesMut;
 use actix_web::{
     body::EitherBody,
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
@@ -174,9 +173,9 @@ mod tests {
     use actix_web::test::TestRequest;
 
     use crate::{sign, Slack, HEADER_SIGNATURE, HEADER_TIMESTAMP};
-    use std::time::{SystemTime, UNIX_EPOCH};
-    use actix_http::body::{MessageBody, to_bytes};
+    use actix_http::body::to_bytes;
     use actix_web::web::Bytes;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     trait BodyTest {
         fn as_str(&self) -> &str;
@@ -198,7 +197,10 @@ mod tests {
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
-        assert_eq!(body.as_str(), format!("header '{}' is required", HEADER_TIMESTAMP));
+        assert_eq!(
+            body.as_str(),
+            format!("header '{}' is required", HEADER_TIMESTAMP)
+        );
     }
 
     #[tokio::test]
@@ -218,7 +220,10 @@ mod tests {
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
-        assert_eq!(body.as_str(), format!("header '{}' is required", HEADER_TIMESTAMP));
+        assert_eq!(
+            body.as_str(),
+            format!("header '{}' is required", HEADER_TIMESTAMP)
+        );
     }
 
     #[tokio::test]
@@ -237,7 +242,10 @@ mod tests {
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
-        assert_eq!(body.as_str(), format!("header '{}' is required", HEADER_SIGNATURE));
+        assert_eq!(
+            body.as_str(),
+            format!("header '{}' is required", HEADER_SIGNATURE)
+        );
     }
 
     #[tokio::test]
@@ -252,15 +260,17 @@ mod tests {
             .as_secs();
         now -= 60 * 5;
         let mut req = TestRequest::default().to_srv_request();
-        let headers = req.headers_mut();
+        let _headers = req.headers_mut();
         req.headers_mut()
             .insert(HEADER_TIMESTAMP.try_into().unwrap(), now.into());
-        req.headers_mut()
-            .insert(HEADER_SIGNATURE.try_into().unwrap(), "aaa".try_into().unwrap());
+        req.headers_mut().insert(
+            HEADER_SIGNATURE.try_into().unwrap(),
+            "aaa".try_into().unwrap(),
+        );
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
-        assert_eq!(body.as_str(),  "invalid signature");
+        assert_eq!(body.as_str(), "invalid signature");
     }
 
     #[tokio::test]
@@ -281,11 +291,13 @@ mod tests {
         );
 
         let mut req = TestRequest::default().to_srv_request();
-        let headers = req.headers_mut();
+        let _headers = req.headers_mut();
         req.headers_mut()
             .insert(HEADER_TIMESTAMP.try_into().unwrap(), now.into());
-        req.headers_mut()
-            .insert(HEADER_SIGNATURE.try_into().unwrap(), expected_signature.try_into().unwrap());
+        req.headers_mut().insert(
+            HEADER_SIGNATURE.try_into().unwrap(),
+            expected_signature.try_into().unwrap(),
+        );
 
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
