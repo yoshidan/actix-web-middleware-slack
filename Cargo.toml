@@ -2,8 +2,12 @@
 name = "actix-web-middleware-slack"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+repository = "https://github.com/yoshidan/actix-web-middleware-slack"
+keywords = ["slack", "actix-web", "actix-web-middleware"]
+license = "MIT"
+readme = "README.md"
+description = "actix-web middleware for verifying requests from Slack."
+documentation = "https://docs.rs/actix-web-middleware-slack/latest/actix-web-middleware-slack/"
 
 [dependencies]
 actix-web = { version="4", default_features = false }
