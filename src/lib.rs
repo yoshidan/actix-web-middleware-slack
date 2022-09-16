@@ -1,3 +1,24 @@
+//! # actix-web-middleware-slack
+//! actix-web middleware for [Verifying requests from Slack](https://api.slack.com/authentication/verifying-requests-from-slack)
+//!
+//! ## Quick Start
+//! ```
+//! use actix_web::middleware::{Logger, Slack};
+//! use actix_web::{App, HttpServer, web};
+//! use actix_web_middleware_slack::Slack;
+//!
+//! #[tokio::main]
+//! fn main() {
+//!     // https://api.slack.com/authentication/verifying-requests-from-slack#verifying-requests-from-slack-using-signing-secrets__app-management-updates
+//!     let server = HttpServer::new(move || {
+//!           let signing_secret = "Signing Secret";
+//!              App::new()
+//!              .wrap(Slack::new(signing_secret))
+//!     }).bind(("0.0.0.0", 8090)).unwrap().run();
+//!     server.await;
+//! }
+//! ```
+
 use std::future::{ready, Ready};
 
 use std::rc::Rc;
@@ -17,16 +38,6 @@ use futures_util::StreamExt;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-/// ```
-/// use actix_web::middleware::{Logger, Slack};
-/// use actix_web::{App, web};
-/// use actix_web_middleware_slack::Slack;
-///
-/// // https://api.slack.com/authentication/verifying-requests-from-slack#verifying-requests-from-slack-using-signing-secrets__app-management-updates
-/// let signing_secret = "Signing Secret";
-/// let app = App::new()
-///    .wrap(Slack::new(signing_secret));
-/// ```
 #[derive(Clone)]
 pub struct Slack {
     slack_signing_secret: String,
@@ -87,23 +98,13 @@ where
         let ts = match get_timestamp(headers) {
             Some(ts) => ts,
             None => {
-                return Box::pin(async {
-                    Ok(bad_request(
-                        req,
-                        format!("header '{}' is required", HEADER_TIMESTAMP),
-                    ))
-                })
+                return Box::pin(async { Ok(bad_request(req, format!("header '{}' is required", HEADER_TIMESTAMP))) })
             }
         };
         let signature = match get_signature(headers) {
             Some(signature) => signature,
             None => {
-                return Box::pin(async {
-                    Ok(bad_request(
-                        req,
-                        format!("header '{}' is required", HEADER_SIGNATURE),
-                    ))
-                })
+                return Box::pin(async { Ok(bad_request(req, format!("header '{}' is required", HEADER_SIGNATURE))) })
             }
         };
 
@@ -115,11 +116,8 @@ where
             while let Some(item) = payload.next().await {
                 body.extend_from_slice(&item?);
             }
-            let calculated_signature = sign(
-                ts,
-                String::from_utf8(body.to_vec()).unwrap(),
-                slack_signing_secret.as_bytes(),
-            );
+            let calculated_signature =
+                sign(ts, String::from_utf8(body.to_vec()).unwrap(), slack_signing_secret.as_bytes());
             if calculated_signature == signature {
                 let (_, mut payload) = Payload::create(true);
                 payload.unread_data(body.into());
@@ -143,10 +141,7 @@ fn sign(ts: u64, body: String, secret: &[u8]) -> String {
 fn get_timestamp(header: &HeaderMap) -> Option<u64> {
     let ts = header.get(HEADER_TIMESTAMP)?;
     let ts = ts.to_str().ok()?.parse::<u64>().ok()?;
-    let now = std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_secs();
+    let now = std::time::SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
     if now - ts > 60 * 5 {
         None
     } else {
@@ -189,63 +184,39 @@ mod tests {
 
     #[tokio::test]
     async fn no_timestamp_header() {
-        let mw = Slack::new("test")
-            .new_transform(test::ok_service())
-            .await
-            .unwrap();
+        let mw = Slack::new("test").new_transform(test::ok_service()).await.unwrap();
         let req = TestRequest::default().to_srv_request();
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
-        assert_eq!(
-            body.as_str(),
-            format!("header '{}' is required", HEADER_TIMESTAMP)
-        );
+        assert_eq!(body.as_str(), format!("header '{}' is required", HEADER_TIMESTAMP));
     }
 
     #[tokio::test]
     async fn old_timestamp() {
-        let mut now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        now -= 60 * 5 - 1;
+        let mut now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        now -= 60 * 5 + 1;
         let mut req = TestRequest::default().to_srv_request();
         req.headers_mut()
             .insert(HEADER_TIMESTAMP.try_into().unwrap(), now.into());
-        let mw = Slack::new("test")
-            .new_transform(test::ok_service())
-            .await
-            .unwrap();
+        let mw = Slack::new("test").new_transform(test::ok_service()).await.unwrap();
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
-        assert_eq!(
-            body.as_str(),
-            format!("header '{}' is required", HEADER_TIMESTAMP)
-        );
+        assert_eq!(body.as_str(), format!("header '{}' is required", HEADER_TIMESTAMP));
     }
 
     #[tokio::test]
     async fn no_signature_header() {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let mut req = TestRequest::default().to_srv_request();
         req.headers_mut()
             .insert(HEADER_TIMESTAMP.try_into().unwrap(), now.into());
-        let mw = Slack::new("test")
-            .new_transform(test::ok_service())
-            .await
-            .unwrap();
+        let mw = Slack::new("test").new_transform(test::ok_service()).await.unwrap();
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
-        assert_eq!(
-            body.as_str(),
-            format!("header '{}' is required", HEADER_SIGNATURE)
-        );
+        assert_eq!(body.as_str(), format!("header '{}' is required", HEADER_SIGNATURE));
     }
 
     #[tokio::test]
@@ -254,19 +225,13 @@ mod tests {
             .new_transform(test::ok_service())
             .await
             .unwrap();
-        let mut now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        now -= 60 * 5;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let mut req = TestRequest::default().to_srv_request();
         let _headers = req.headers_mut();
         req.headers_mut()
             .insert(HEADER_TIMESTAMP.try_into().unwrap(), now.into());
-        req.headers_mut().insert(
-            HEADER_SIGNATURE.try_into().unwrap(),
-            "aaa".try_into().unwrap(),
-        );
+        req.headers_mut()
+            .insert(HEADER_SIGNATURE.try_into().unwrap(), "aaa".try_into().unwrap());
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = to_bytes(res.into_body()).await.unwrap();
@@ -279,25 +244,15 @@ mod tests {
             .new_transform(test::ok_service())
             .await
             .unwrap();
-        let mut now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        now -= 60 * 5;
-        let expected_signature = sign(
-            now,
-            "".to_string(),
-            "8f742231b10e8888abcd99yyyzzz85a5".as_bytes(),
-        );
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let expected_signature = sign(now, "".to_string(), "8f742231b10e8888abcd99yyyzzz85a5".as_bytes());
 
         let mut req = TestRequest::default().to_srv_request();
         let _headers = req.headers_mut();
         req.headers_mut()
             .insert(HEADER_TIMESTAMP.try_into().unwrap(), now.into());
-        req.headers_mut().insert(
-            HEADER_SIGNATURE.try_into().unwrap(),
-            expected_signature.try_into().unwrap(),
-        );
+        req.headers_mut()
+            .insert(HEADER_SIGNATURE.try_into().unwrap(), expected_signature.try_into().unwrap());
 
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
