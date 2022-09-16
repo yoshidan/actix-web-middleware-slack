@@ -8,13 +8,9 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let server = HttpServer::new(move || {
-//!           // https://api.slack.com/authentication/verifying-requests-from-slack#verifying-requests-from-slack-using-signing-secrets__app-management-updates
-//!           let signing_secret = "Signing Secret";
-//!              App::new()
-//!              .wrap(Slack::new(signing_secret))
-//!     }).bind(("0.0.0.0", 8090)).unwrap().run();
-//!     server.await;
+//!     // https://api.slack.com/authentication/verifying-requests-from-slack#verifying-requests-from-slack-using-signing-secrets__app-management-updates
+//!     let signing_secret = "Signing Secret";
+//!     let app = App::new().wrap(Slack::new(signing_secret));
 //! }
 //! ```
 
