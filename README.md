@@ -13,14 +13,13 @@ actix-web-middleware-slack = <version>
 ## Quick Start
 
 ```rust
-use actix_web::middleware::{Logger, Slack};
 use actix_web::{App, HttpServer, web};
 use actix_web_middleware_slack::Slack;
 
 #[tokio::main]
 async fn main() {
-    // https://api.slack.com/authentication/verifying-requests-from-slack#verifying-requests-from-slack-using-signing-secrets__app-management-updates
     let server = HttpServer::new(move || {
+        // https://api.slack.com/authentication/verifying-requests-from-slack#verifying-requests-from-slack-using-signing-secrets__app-management-updates
         let signing_secret = "Signing Secret";
         App::new()
             .wrap(Slack::new(signing_secret))
