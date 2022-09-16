@@ -1,6 +1,8 @@
 # actix-web-middleware-slack
 actix-web middleware for [Verifying requests from Slack](https://api.slack.com/authentication/verifying-requests-from-slack)
 
+![CI](https://github.com/yoshidan/actix-web-middleware-slack/workflows/CI/badge.svg?branch=main)
+
 ## Installation
 
 ```
