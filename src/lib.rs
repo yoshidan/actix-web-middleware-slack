@@ -169,8 +169,12 @@ mod tests {
 
     use crate::{sign, Slack, HEADER_SIGNATURE, HEADER_TIMESTAMP};
     use actix_http::body::to_bytes;
+    use actix_http::h1::Payload;
     use actix_web::web::Bytes;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    const TEST_SECRET: &str = "8f742231b10e8888abcd99yyyzzz85a5";
+    const TEST_BODY : &str = "token=xyzz0WbapA4vBCDEFasx0q6G&team_id=T1DC2JH3J&team_domain=testteamnow&channel_id=G8PSS9T3V&channel_name=foobar&user_id=U2CERLKJA&user_name=roadrunner&command=%2Fwebhook-collect&text=&response_url=https%3A%2F%2Fhooks.slack.com%2Fcommands%2FT1DC2JH3J%2F397700885554%2F96rGlfmibIGlgcZRskXaIFfN&trigger_id=398738663015.47445629121.803a0bc887a14d10d2c447fce8b6703c";
 
     trait BodyTest {
         fn as_str(&self) -> &str;
@@ -180,6 +184,14 @@ mod tests {
         fn as_str(&self) -> &str {
             std::str::from_utf8(self).unwrap()
         }
+    }
+
+    #[test]
+    fn test_sign() {
+        assert_eq!(
+            "v0=a2114d57b48eac39b9ad189dd8316235a7b4a8d21a10bd27519666489c69b503",
+            sign(1531420618, TEST_BODY.to_string(), TEST_SECRET.as_bytes())
+        );
     }
 
     #[tokio::test]
@@ -221,10 +233,7 @@ mod tests {
 
     #[tokio::test]
     async fn invalid_sign() {
-        let mw = Slack::new("8f742231b10e8888abcd99yyyzzz85a5")
-            .new_transform(test::ok_service())
-            .await
-            .unwrap();
+        let mw = Slack::new(TEST_SECRET).new_transform(test::ok_service()).await.unwrap();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let mut req = TestRequest::default().to_srv_request();
         let _headers = req.headers_mut();
@@ -240,19 +249,22 @@ mod tests {
 
     #[tokio::test]
     async fn success() {
-        let mw = Slack::new("8f742231b10e8888abcd99yyyzzz85a5")
-            .new_transform(test::ok_service())
-            .await
-            .unwrap();
+        let mw = Slack::new(TEST_SECRET).new_transform(test::ok_service()).await.unwrap();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        let expected_signature = sign(now, "".to_string(), "8f742231b10e8888abcd99yyyzzz85a5".as_bytes());
+        let signature = sign(now, TEST_BODY.to_string(), TEST_SECRET.as_bytes());
 
+        // request body
         let mut req = TestRequest::default().to_srv_request();
+        let (_, mut payload) = Payload::create(true);
+        payload.unread_data(TEST_BODY.into());
+        req.set_payload(payload.into());
+
+        // headers
         let _headers = req.headers_mut();
         req.headers_mut()
             .insert(HEADER_TIMESTAMP.try_into().unwrap(), now.into());
         req.headers_mut()
-            .insert(HEADER_SIGNATURE.try_into().unwrap(), expected_signature.try_into().unwrap());
+            .insert(HEADER_SIGNATURE.try_into().unwrap(), signature.try_into().unwrap());
 
         let res = mw.call(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
