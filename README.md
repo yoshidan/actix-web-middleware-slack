@@ -16,7 +16,7 @@ use actix_web::{App, HttpServer, web};
 use actix_web_middleware_slack::Slack;
 
 #[tokio::main]
-fn main() {
+async fn main() {
     // https://api.slack.com/authentication/verifying-requests-from-slack#verifying-requests-from-slack-using-signing-secrets__app-management-updates
     let server = HttpServer::new(move || {
         let signing_secret = "Signing Secret";
